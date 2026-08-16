@@ -14,24 +14,29 @@ clock = pygame.time.Clock()
 score = 0
 font = pygame.font.SysFont("Arial", 36)
 ants_list = []
+base_ant_speed = 2.0  # Start with a speed of 2. Use a float for smoother increases.
+score_for_next_speed_increase = 20 # Increase speed every 100 points
 
 # --- THE ANT TEMPLATE ---
 class Ant:
-    def __init__(self, x, y):
+    def __init__(self, x, y, speed):
         self.x = x
         self.y = y
         self.radius = 25 # Click hitbox size
         self.is_squished = False
         self.squish_timer = 30 # How many frames to stay dead before vanishing
 
-    # --- TEAMMATE'S WORK AREA (MOTION) ---
-    # Your teammate will add variables like speed and angle here
-        self.speed = 2
+        # --- Movement Parameters ---
+        self.vertical_speed = speed # Use the passed-in speed for downward movement
+        self.horizontal_speed = speed * 0.75 # Make horizontal speed a bit slower than vertical
+        
+        # --- Ant's "Brain" for Zigzag Movement ---
+        self.direction_timer = random.randint(40, 80) # Start with an initial timer
+        # -1 for left, 1 for right. Starts randomly.
+        self.horizontal_direction_multiplier = random.choice([-1, 1])
 
     def draw(self, surface):
         # --- YOUR WORK AREA (THEME & VISUALS) ---
-        # Right now, this draws simple shapes.
-        # You will change this to draw images/sprites later today!
         if not self.is_squished:
             pygame.draw.circle(surface, (0, 0, 0), (int(self.x), int(self.y)), self.radius) # Black circle = Live Ant
         else:
@@ -42,11 +47,25 @@ class Ant:
             self.squish_timer -= 1
             return
 
-        # --- TEAMMATE'S WORK AREA (MOTION) ---
-        # Your teammate will write the movement logic here.
-        # Fallback placeholder to show it works:
-        self.y += self.speed
-
+        # --- New, Smooth Movement Logic ---
+        # 1. Always move down
+        self.y += self.vertical_speed
+        
+        # 2. Check the timer to see if we should change horizontal direction
+        self.direction_timer -= 1
+        if self.direction_timer <= 0:
+            # Time to change direction!
+            self.direction_timer = random.randint(40, 80) # Reset timer for the next segment
+            # Flip direction: if it was 1, it becomes -1. If -1, it becomes 1.
+            self.horizontal_direction_multiplier *= -1
+            
+        # 3. Always apply horizontal movement every frame
+        self.x += self.horizontal_speed * self.horizontal_direction_multiplier
+        
+        # --- Optional: Boundary Check ---
+        # Bounce off side walls
+        if self.x < self.radius or self.x > SCREEN_WIDTH - self.radius:
+            self.horizontal_direction_multiplier *= -1
 
 
 # --- GAME MANAGEMENT EVENTS ---
@@ -62,7 +81,7 @@ while running:
             running = False
 
         if event.type == SPAWN_EVENT and len(ants_list) < 8:
-            ants_list.append(Ant(random.randint(50, SCREEN_WIDTH - 50), 50))
+            ants_list.append(Ant(random.randint(50, SCREEN_WIDTH - 50), 50, base_ant_speed))
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: # Left click or screen tap
             mouse_x, mouse_y = event.pos
@@ -73,7 +92,9 @@ while running:
                     if distance < ant.radius:
                         ant.is_squished = True
                         score += 10
-
+    if(score >= score_for_next_speed_increase):
+        base_ant_speed += 0.125
+        score_for_next_speed_increase += 10
     # 2. MOVE THINGS
     for ant in ants_list[:]:
         ant.update()
